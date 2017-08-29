@@ -1,0 +1,274 @@
+#!/bin/bash
+
+DIR=`pwd`
+APP_ROOT=$DIR/..
+APP_IOS_ROOT=$DIR
+
+PROJECT=Goddess
+APP_NAME=
+APP_PATH=
+TARGET=
+CONFIGURATION=
+DEVELOPER_NAME=
+PROVISONING_PROFILE=
+
+IPA_NAME_PREFIX=goddess-online
+BUILD_TIME_PATH=/tmp/.goddess-online-ipa-build-time
+OTA_VERSION_PATH=$APP_IOS_ROOT/build/ota_version
+OTA_SERVER_HOST=goddess-shared
+OTA_SERVER_BASE_DIR=/home/goddess-shared/ota/ipa
+OTA_UPDATE_BASE_URL=http://192.168.1.14/ota/ipa
+
+
+help() {
+    cat << HELP
+
+Usage: builder {help|clean|local|deploy} [--env|-e] [debug|release]|[dev|test|prod]
+
+    help|--help|-h                       显示此信息
+    clean                                执行 xcodebuild -alltargets -configuration Debug|Release clean 任务
+    simulator|simu                       模拟器环境编译、打包
+    local {--env|-e} {debug|release}     本地环境编译、打包。debug|release 分别对应 xcodebuild -configuration Debug|Release
+    deploy {--env|-e} {dev|test|prod}    持续集成服务编译、打包，请勿在本地环境执行
+HELP
+}
+
+builder_echo() {
+    echo "[builder]" $*
+}
+
+build_time() {
+    date '+%Y-%m-%d %H:%M:%S' > $BUILD_TIME_PATH
+
+    builder_echo "BUILD TIME SUCCEEDED"
+}
+
+build_timestamp() {
+    cat $BUILD_TIME_PATH | sed 's/://g' | sed 's/-//g' | sed 's/ //g'
+}
+
+build_client_version() {
+    cat $APP_ROOT/Resources/client_version
+}
+
+# build_ipa_path() {
+#     CLIENT_VERSION=`build_client_version`
+#     TIMESTAMP=`build_timestamp`
+#     IPA_NAME=$IPA_NAME_PREFIX-$CLIENT_VERSION-$TIMESTAMP
+#     IPA_PATH=$APP_IOS_ROOT/build/$CONFIGURATION-iphoneos/$IPA_NAME.ipa
+# }
+
+compile() {
+    xcodebuild -project $PROJECT.xcodeproj -target $TARGET -configuration $CONFIGURATION build
+
+    builder_echo "COMPILE SUCCEEDED"
+}
+
+build_ipa() {
+    case "$1" in
+        local)
+            IPA_NAME=$IPA_NAME_PREFIX
+            ;;
+        deploy)
+            CLIENT_VERSION=`build_client_version`
+            TIMESTAMP=`build_timestamp`
+            IPA_NAME=$IPA_NAME_PREFIX-$CLIENT_VERSION-$TIMESTAMP-$2
+            ;;
+        *)
+            builder_echo "unsupported build_ipa args: $1"
+            builder_echo "usage: build_ipa {local|deploy}"
+            exit 1
+            ;;
+    esac
+
+    IPA_PATH=$APP_IOS_ROOT/build/$CONFIGURATION-iphoneos/$IPA_NAME.ipa
+
+    #xcrun --sdk iphoneos PackageApplication -v $APP_PATH -o $IPA_PATH --sign "$DEVELOPER_NAME" --embed $PROVISONING_PROFILE
+    xcrun --sdk iphoneos PackageApplication -v $APP_PATH -o $IPA_PATH
+
+    builder_echo "BUILD CLIENT SUCCEEDED"
+}
+
+build_app_bundle_identifier() {
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $APP_PATH/Info.plist
+}
+
+build_app_bundle_display_name() {
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' $APP_PATH/Info.plist
+}
+
+build_itms_services_plist() {
+    #if [ "$1" = "dev" ] || [ "$1" = "test" ] || [ "$1" = "Rekoo" ] || [ "$1" = "TB" ] || [ "$1" = "KY" ]; then
+        CLIENT_VERSION=`build_client_version`
+        TIMESTAMP=`build_timestamp`
+        IPA_NAME=$IPA_NAME_PREFIX-$CLIENT_VERSION-$TIMESTAMP-$1
+
+        ITMS_SERVICES_PLIST_PATH=$APP_IOS_ROOT/build/$CONFIGURATION-iphoneos/$IPA_NAME.plist
+
+        APP_BUNDLE_IDENTIFIER=`build_app_bundle_identifier`
+        APP_BUNDLE_DISPLAY_NAME=`build_app_bundle_display_name`
+        APP_TITLE="$APP_BUNDLE_DISPLAY_NAME $CLIENT_VERSION"
+
+        echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+<key>items</key>
+<array>
+<dict>
+<key>assets</key>
+<array>
+<dict>
+<key>kind</key>
+<string>software-package</string>
+<key>url</key>
+<string>$OTA_UPDATE_URL/$IPA_NAME.ipa</string>
+</dict>
+<dict>
+<key>kind</key>
+<string>full-size-image</string>
+<key>needs-shine</key>
+<true/>
+<key>url</key>
+<string>$OTA_UPDATE_URL/${IPA_NAME_PREFIX}_icon.png</string>
+</dict>
+<dict>
+<key>kind</key>
+<string>display-image</string>
+<key>needs-shine</key>
+<true/>
+<key>url</key>
+<string>$OTA_UPDATE_URL/${IPA_NAME_PREFIX}_icon.png</string>
+</dict>
+</array>
+<key>metadata</key>
+<dict>
+<key>bundle-identifier</key>
+<string>$APP_BUNDLE_IDENTIFIER</string>
+<key>bundle-version</key>
+<string>$CLIENT_VERSION</string>
+<key>kind</key>
+<string>software</string>
+<key>subtitle</key>
+<string>$APP_TITLE</string>
+<key>title</key>
+<string>$APP_TITLE</string>
+</dict>
+</dict>
+</array>
+</dict>
+</plist>" > $ITMS_SERVICES_PLIST_PATH
+        builder_echo "BUILD ITMS SERVICES PLIST SUCCEEDED"
+    #else
+    #    builder_echo "UNSUPPORTED ITMS SERVICES PLIST"
+    #fi
+}
+
+upload() {
+    CLIENT_VERSION=`build_client_version`
+    TIMESTAMP=`build_timestamp`
+    IPA_NAME=$IPA_NAME_PREFIX-$CLIENT_VERSION-$TIMESTAMP-$1
+    IPA_PATH=$APP_IOS_ROOT/build/$CONFIGURATION-iphoneos/$IPA_NAME.ipa
+    
+    #if [ "$1" = "dev" ] || [ "$1" = "test" ] || [ "$1" = "Rekoo" ] || [ "$1" = "TB" ] || [ "$1" = "KY" ]; then
+        ITMS_SERVICES_PLIST_PATH=$APP_IOS_ROOT/build/$CONFIGURATION-iphoneos/$IPA_NAME.plist
+        
+        cat $BUILD_TIME_PATH > $OTA_VERSION_PATH
+        echo $TIMESTAMP >> $OTA_VERSION_PATH
+        echo $CLIENT_VERSION >> $OTA_VERSION_PATH
+        
+        ssh $OTA_SERVER_HOST "mkdir -p $OTA_SERVER_DIR"
+        ssh $OTA_SERVER_HOST "cat /dev/null > $OTA_SERVER_DIR/version"
+        scp $IPA_PATH $OTA_SERVER_HOST:$OTA_SERVER_DIR
+        scp $ITMS_SERVICES_PLIST_PATH $OTA_SERVER_HOST:$OTA_SERVER_DIR
+        scp $OTA_VERSION_PATH $OTA_SERVER_HOST:$OTA_SERVER_DIR/version
+    #else
+    #    ssh $OTA_SERVER_HOST "mkdir -p $OTA_SERVER_DIR"
+    #    scp $IPA_PATH $OTA_SERVER_HOST:$OTA_SERVER_DIR
+    #fi
+
+    builder_echo "UPLOAD SUCCEEDED"
+}
+
+init_build_vars() {
+    if [ "$1" != "--env" ] && [ "$1" != "-e" ]; then
+        builder_echo "unsupported env: $1 $2"
+        help
+        exit 1
+    fi
+
+    case "$2" in
+        dev|debug)
+            APP_NAME=崩坏三国开发版
+            TARGET=$3
+            CONFIGURATION=Debug
+
+            OTA_SERVER_DIR=$OTA_SERVER_BASE_DIR/dev
+            OTA_UPDATE_URL=$OTA_UPDATE_BASE_URL/dev
+            ;;
+        test)
+            APP_NAME=崩坏三国测试版
+            TARGET=$3
+            CONFIGURATION=Debug
+
+            OTA_SERVER_DIR=$OTA_SERVER_BASE_DIR/test
+            OTA_UPDATE_URL=$OTA_UPDATE_BASE_URL/test
+            ;;
+        prod|release)
+            APP_NAME=崩坏三国
+            TARGET=$3
+            CONFIGURATION=Release
+
+            OTA_SERVER_DIR=$OTA_SERVER_BASE_DIR/prod
+            OTA_UPDATE_URL=$OTA_UPDATE_BASE_URL/prod
+            ;;
+        *)
+            builder_echo "unsupported env: $1 $2"
+            help
+            exit 1
+            ;;
+    esac
+
+    if [ "$3" = "ND91" ]; then
+        APP_NAME=Goddess
+        builder_echo "[ ND91 ] APP_NAME CHANGE TO Goddess"
+    fi
+    APP_PATH=$APP_IOS_ROOT/build/$CONFIGURATION-iphoneos/$APP_NAME.app
+}
+
+
+case "$1" in
+    help|--help|-h)
+        help
+        ;;
+    clean)
+        xcodebuild -alltargets -configuration Debug clean
+        xcodebuild -alltargets -configuration Release clean
+        rm -rf $APP_IOS_ROOT/build
+        ;;
+    simulator|simu)
+        builder_echo "debug in simulator"
+        ;;
+    local)
+        init_build_vars $2 $3
+
+        compile
+        build_ipa "local"
+        ;;
+    deploy)
+        init_build_vars $2 $3 $4
+
+        build_time
+        compile
+        build_ipa deploy $4
+        build_itms_services_plist $4
+        upload $4
+        ;;
+    *)
+        builder_echo "unsupported build command: $1"
+        help
+        exit 1
+        ;;
+esac
+
+exit 0

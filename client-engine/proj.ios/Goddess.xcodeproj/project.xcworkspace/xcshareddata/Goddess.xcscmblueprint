@@ -1,0 +1,30 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "6348E13C5270AFE2679D19B33D4D3265F9265564",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "6348E13C5270AFE2679D19B33D4D3265F9265564" : 0,
+    "2BCC73D4FE7CCD7F0A1E67193F69E3C64B1815EC" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "D0752E43-5A86-4411-9F20-D8E36D141C40",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "6348E13C5270AFE2679D19B33D4D3265F9265564" : "client-engine",
+    "2BCC73D4FE7CCD7F0A1E67193F69E3C64B1815EC" : "client-app"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "Goddess",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 204,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "proj.ios\/Goddess.xcodeproj",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "gitlab.rekoo.net:goddess\/client-app.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "2BCC73D4FE7CCD7F0A1E67193F69E3C64B1815EC"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "gitlab.rekoo.net:goddess\/client-engine.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "6348E13C5270AFE2679D19B33D4D3265F9265564"
+    }
+  ]
+}
